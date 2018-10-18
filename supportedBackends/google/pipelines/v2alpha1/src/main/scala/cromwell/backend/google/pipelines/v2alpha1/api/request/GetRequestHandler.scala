@@ -50,8 +50,10 @@ trait GetRequestHandler { this: RequestHandler =>
         // Deserialize the response
         val events: List[Event] = operation.events.fallBackTo(List.empty)(pollingRequest.workflowId -> operation)
         val pipeline: Option[Pipeline] = operation.pipeline.toErrorOr.fallBack(pollingRequest.workflowId -> operation)
+        val actions: List[Action] = pipeline.map( _.getActions.asScala ).toList.flatten
         val workerEvent: Option[WorkerAssignedEvent] = findEvent[WorkerAssignedEvent](events).flatMap(_(pollingRequest.workflowId -> operation))
-        val executionEvents = getEventList(metadata, events).toList
+        val executionEvents = getEventList(metadata, events, actions).toList
+        // Correlate `executionEvents` to `actions` to potentially assign a grouping into the appropriate events.
         val machineType = pipeline.map(_.getResources.getVirtualMachine.getMachineType)
         // preemptible is only used if the job fails, as a heuristic to guess if the VM was preempted.
         // If we can't get the value of preempted we still need to return something, returning false will not make the failure count
@@ -63,7 +65,6 @@ trait GetRequestHandler { this: RequestHandler =>
         // If there's an error, generate an unsuccessful status. Otherwise, we were successful!
         Option(operation.getError) match {
           case Some(error) =>
-            val actions = pipeline.map(_.getActions.asScala.toList).toList.flatten
             val errorReporter = new ErrorReporter(machineType, preemptible, executionEvents, zone, instanceName, actions, operation, pollingRequest.workflowId)
             errorReporter.toUnsuccessfulRunStatus(error, events)
           case None => Success(executionEvents, machineType, zone, instanceName)
@@ -79,11 +80,17 @@ trait GetRequestHandler { this: RequestHandler =>
     }
   }
 
-  private def getEventList(metadata: Map[String, AnyRef], events: List[Event]): Seq[ExecutionEvent] = {
+  private def getEventList(metadata: Map[String, AnyRef], events: List[Event], actions: List[Action]): List[ExecutionEvent] = {
     val starterEvent: Option[ExecutionEvent] = {
       metadata.get("createTime") map { time => ExecutionEvent("waiting for quota", OffsetDateTime.parse(time.toString)) }
     }
 
-    starterEvent.toList ++ events.map(toExecutionEvent)
+    val List(localizingActionIndexes, delocalizingActionIndexes) = List("Localization", "Delocalization") map { value =>
+      actions.zipWithIndex collect {
+        case (action, index) if List("logging", "tag") exists { key => action.getLabels.asScala.get(key).contains(value) } => index
+      }
+    }
+
+    starterEvent.toList ++ events.map(toExecutionEvent(localizingActionIndexes.toSet, delocalizingActionIndexes.toSet))
   }
 }

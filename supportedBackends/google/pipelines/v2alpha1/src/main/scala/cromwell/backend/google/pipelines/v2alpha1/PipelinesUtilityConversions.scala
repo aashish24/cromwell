@@ -10,6 +10,8 @@ import cromwell.core.ExecutionEvent
 import cromwell.core.logging.JobLogger
 import mouse.all._
 
+import scala.util.Try
+
 trait PipelinesUtilityConversions {
   def toAccelerator(gpuResource: GpuResource) = new Accelerator().setCount(gpuResource.gpuCount.value.toLong).setType(gpuResource.gpuType.toString)
   def toMachineType(jobLogger: JobLogger)(attributes: PipelinesApiRuntimeAttributes) = MachineConstraints.machineType(attributes.memory, attributes.cpu, jobLogger)
@@ -22,7 +24,20 @@ trait PipelinesUtilityConversions {
     .setName(disk.name)
     .setSizeGb(disk.sizeGb)
     .setType(disk.diskType |> toV2DiskType)
-  def toExecutionEvent(event: Event) : ExecutionEvent = ExecutionEvent(event.getDescription, OffsetDateTime.parse(event.getTimestamp))
+
+  def toExecutionEvent(localizingActionIndexes: Set[Int], delocalizingActionIndexes: Set[Int])(event: Event) : ExecutionEvent = {
+    val grouping = for {
+      rawValue <- Option(event.getDetails.get("actionId"))
+      integerValue <- Try(Integer.valueOf(rawValue.toString)).toOption
+      group <- if (localizingActionIndexes.contains(integerValue)) Option("Localizing") else if (delocalizingActionIndexes.contains(integerValue)) Option("Delocalizing") else None
+    } yield group
+
+    ExecutionEvent(
+      name = event.getDescription,
+      offsetDateTime = OffsetDateTime.parse(event.getTimestamp),
+      grouping = grouping
+    )
+  }
 
   private def toV2DiskType(diskType: DiskType) = diskType match {
     case DiskType.HDD => "pd-standard"
