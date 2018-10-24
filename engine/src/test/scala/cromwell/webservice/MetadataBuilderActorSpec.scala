@@ -18,8 +18,8 @@ import spray.json._
 
 import scala.concurrent.Future
 import scala.concurrent.duration._
-import scala.language.postfixOps
 import cromwell.webservice.MetadataBuilderActorSpec._
+
 
 class MetadataBuilderActorSpec extends TestKitSuite("Metadata") with AsyncFlatSpecLike with Matchers with Mockito
   with TableDrivenPropertyChecks with ImplicitSender {
@@ -550,30 +550,34 @@ class MetadataBuilderActorSpec extends TestKitSuite("Metadata") with AsyncFlatSp
       ee(workflowId, Foo, eventIndex = 2, EndTime, Interval1.end),
       ee(workflowId, Foo, eventIndex = 2, Grouping, Localizing),
 
-      // Bar should produce a synthetic grouping event with span [Interval1.Start, None] (no closing end timestamp for the last event)
-      ee(workflowId, Bar, eventIndex = 3, StartTime, Interval3.start),
+      // Bar should produce a synthetic grouping event with span [Interval3.Start, None] (no closing end timestamp for the last event)
+      ee(workflowId, Bar, eventIndex = 3, StartTime, Interval5.start),
       ee(workflowId, Bar, eventIndex = 3, Grouping, Delocalizing),
-      ee(workflowId, Bar, eventIndex = 4, StartTime, Interval1.start),
-      ee(workflowId, Bar, eventIndex = 4, EndTime, Interval1.end),
+      ee(workflowId, Bar, eventIndex = 4, StartTime, Interval3.start),
+      ee(workflowId, Bar, eventIndex = 4, EndTime, Interval3.end),
       ee(workflowId, Bar, eventIndex = 4, Grouping, Delocalizing),
-      ee(workflowId, Bar, eventIndex = 5, StartTime, Interval2.start),
-      ee(workflowId, Bar, eventIndex = 5, EndTime, Interval2.end),
+      ee(workflowId, Bar, eventIndex = 5, StartTime, Interval4.start),
+      ee(workflowId, Bar, eventIndex = 5, EndTime, Interval4.end),
       ee(workflowId, Bar, eventIndex = 5, Grouping, Delocalizing),
 
-      // Baz and Qux should not get grouped.
-      ee(workflowId, Baz, eventIndex = 6, StartTime, Interval1.start),
-      ee(workflowId, Baz, eventIndex = 6, EndTime, Interval1.end),
+      ee(workflowId, Baz, eventIndex = 6, StartTime, Interval2.start),
+      ee(workflowId, Baz, eventIndex = 6, EndTime, Interval2.end),
+      ee(workflowId, Baz, eventIndex = 6, Grouping, Localizing),
+      ee(workflowId, Baz, eventIndex = 7, StartTime, Interval1.start),
+      ee(workflowId, Baz, eventIndex = 7, EndTime, Interval1.end),
+      ee(workflowId, Baz, eventIndex = 7, Grouping, Localizing),
 
-      ee(workflowId, Qux, eventIndex = 7, StartTime, Interval2.start),
-      ee(workflowId, Qux, eventIndex = 7, EndTime, Interval2.end),
+      // Qux should not get grouped.
+      ee(workflowId, Qux, eventIndex = 8, StartTime, Interval7.start),
+      ee(workflowId, Qux, eventIndex = 8, EndTime, Interval7.end),
 
       // These 'plain events' don't have groups and aren't executionEvents. These are just here to make sure their presence doesn't
       // cause problems.
-      pe(workflowId, Quux, StartTime, Interval1.start),
-      pe(workflowId, Quux, EndTime, Interval1.end),
+      pe(workflowId, Quux, StartTime, Interval8.start),
+      pe(workflowId, Quux, EndTime, Interval8.end),
 
-      pe(workflowId, Corge, StartTime, Interval2.start),
-      pe(workflowId, Corge, EndTime, Interval2.end)
+      pe(workflowId, Corge, StartTime, Interval9.start),
+      pe(workflowId, Corge, EndTime, Interval9.end)
     )
 
     // The values for `eventIndex` are purely artifacts of how the logic in `groupEvents` chooses one of the keys
@@ -585,23 +589,24 @@ class MetadataBuilderActorSpec extends TestKitSuite("Metadata") with AsyncFlatSp
       ee(workflowId, Foo, eventIndex = 1, EndTime, Interval2.end),
       ee(workflowId, Foo, eventIndex = 1, Description, Localizing.name),
 
-      ee(workflowId, Bar, eventIndex = 3, StartTime, Interval1.start),
+      ee(workflowId, Bar, eventIndex = 3, StartTime, Interval3.start),
       ee(workflowId, Bar, eventIndex = 3, Description, Delocalizing.name),
 
       ee(workflowId, Baz, eventIndex = 6, StartTime, Interval1.start),
-      ee(workflowId, Baz, eventIndex = 6, EndTime, Interval1.end),
+      ee(workflowId, Baz, eventIndex = 6, EndTime, Interval2.end),
+      ee(workflowId, Baz, eventIndex = 6, Description, Localizing.name),
 
-      ee(workflowId, Qux, eventIndex = 7, StartTime, Interval2.start),
-      ee(workflowId, Qux, eventIndex = 7, EndTime, Interval2.end),
+      ee(workflowId, Qux, eventIndex = 8, StartTime, Interval7.start),
+      ee(workflowId, Qux, eventIndex = 8, EndTime, Interval7.end),
 
-      pe(workflowId, Quux, StartTime, Interval1.start),
-      pe(workflowId, Quux, EndTime, Interval1.end),
+      pe(workflowId, Quux, StartTime, Interval8.start),
+      pe(workflowId, Quux, EndTime, Interval8.end),
 
-      pe(workflowId, Corge, StartTime, Interval2.start),
-      pe(workflowId, Corge, EndTime, Interval2.end)
+      pe(workflowId, Corge, StartTime, Interval9.start),
+      pe(workflowId, Corge, EndTime, Interval9.end)
     )
 
-    val actual = groupEvents(events).toSet
+    val actual = MetadataBuilderActor.groupEvents(events).toSet
 
     def filterEventsByCall(events: Iterable[MetadataEvent])(call: Call): Iterable[MetadataEvent] = {
       events collect { case e@MetadataEvent(MetadataKey(_, Some(MetadataJobKey(n, _, _)), _), _, _) if call.name == n => e}
@@ -619,74 +624,22 @@ class MetadataBuilderActorSpec extends TestKitSuite("Metadata") with AsyncFlatSp
 }
 
 object MetadataBuilderActorSpec {
-  def makeSyntheticGroupedExecutionEvents(grouping: String, events: List[MetadataEvent]): List[MetadataEvent] = {
-    // The list of events might be incoherent since it's some events that were logically generated may not (yet) have been
-    // recorded to the database. This is written defensively to check that there's a start date in the event list. If there
-    // isn't one, just return the original list of events because we can't sanely construct a synthetic event.
-    // The end date will correspond to the same execution event which has the largest start date. If there isn't an end
-    // date that should be okay (?).
-    val startTimeEvents = events.filter(_.key.key.endsWith(":startTime"))
-    if (startTimeEvents.isEmpty) {
-      events
-    } else {
-      val oldestStartTimeKey = startTimeEvents.minBy(_.value collect { case MetadataValue(s, _) => OffsetDateTime.parse(s).toEpochSecond } get)
-      val newestStartTimeKey = startTimeEvents.maxBy(_.value collect { case MetadataValue(s, _) => OffsetDateTime.parse(s).toEpochSecond } get)
-      // Find the end date corresponding to the newest start date event, if it exists. Use the same prefix as on the
-      // newestStartDateEvent to search for it.
-      val executionEventPrefix = newestStartTimeKey.key.key.takeWhile(_ != ':')
-      val endTimeKey = s"$executionEventPrefix:endTime"
-      val endTimeEvent = events.find(_.key.key == endTimeKey)
 
-      val syntheticDescriptionKey = oldestStartTimeKey.key.copy(key = s"$executionEventPrefix:description")
-      val syntheticStartTimeKey = oldestStartTimeKey.key.copy(key = s"$executionEventPrefix:startTime")
+  val y2k = OffsetDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
 
-      val stuff = List(
-        oldestStartTimeKey.copy(key = syntheticStartTimeKey), // This start event will have been a different event than the end event so update to use the same key.
-        oldestStartTimeKey.copy(key = syntheticDescriptionKey, value = Option(MetadataValue(grouping, MetadataString)))
-      ) ++ endTimeEvent.toList
-      stuff
-    }
+  case class Interval(start: OffsetDateTime, end: OffsetDateTime) {
+    def after: Interval = Interval(start = this.end.plusHours(1), end = this.end.plusHours(2))
   }
 
-  def groupEvents(events: List[MetadataEvent]): List[MetadataEvent] = {
-    // Find all the MetadataKeys with executionEvents[x]:y names. We want to record the `x` and note whether we see
-    // a `y` that has a `grouping` value.
-
-    val (executionEvents, nonExecutionEvents) = events.partition(_.key.key.startsWith("executionEvents["))
-    val executionEventKeyPatternRe = "[^]]+".r
-    import mouse.all._
-    // Group execution events by their execution event keys.
-    val executionEventsByKeys = executionEvents groupBy { e => (e.key.key.substring("executionEvents[".length) |> executionEventKeyPatternRe.findFirstIn).get }
-    // "grouped" and "ungrouped" refer to the ":grouping" attribute that may be present in execution event metadata.
-    val (groupedExecutionEvents, ungroupedExecutionEvents) = executionEventsByKeys partition { case (k, es) => es.exists(_.key.key == s"executionEvents[$k]:grouping") }
-    // Here we want to pick out the name of the grouping and collect all events into that.
-    val groupedExecutionEventsByGrouping = groupedExecutionEvents groupBy { case (k, es) => es.collectFirst { case e if e.key.key == s"executionEvents[$k]:grouping" => e.value.get.value } get } map {
-      case (g, m) => g -> m.values.toList.flatten
-    }
-    val tupledGrouper = (makeSyntheticGroupedExecutionEvents _).tupled
-    nonExecutionEvents ++ ungroupedExecutionEvents.values.toList.flatten ++ (groupedExecutionEventsByGrouping.toList flatMap tupledGrouper)
-  }
-
-  sealed trait Interval {
-    def start: OffsetDateTime
-
-    def end: OffsetDateTime
-  }
-
-  case object Interval1 extends Interval {
-    override val start = y2k
-    override val end = start.plusHours(1)
-  }
-
-  case object Interval2 extends Interval {
-    override val start = Interval1.end.plusHours(1)
-    override val end = Interval2.start.plusHours(1)
-  }
-
-  case object Interval3 extends Interval {
-    override val start = Interval2.end.plusHours(1)
-    override val end = Interval3.start.plusHours(1)
-  }
+  val Interval1 = Interval(y2k, y2k.plusHours(1))
+  val Interval2 = Interval1.after
+  val Interval3 = Interval2.after
+  val Interval4 = Interval3.after
+  val Interval5 = Interval4.after
+  val Interval6 = Interval5.after
+  val Interval7 = Interval6.after
+  val Interval8 = Interval7.after
+  val Interval9 = Interval8.after
 
   sealed trait Attr {
     val name: String
@@ -728,7 +681,6 @@ object MetadataBuilderActorSpec {
 
   def executionEventKey(workflowId: WorkflowId, call: Call, eventIndex: Int, attr: Attr): MetadataKey = MetadataKey(workflowId, Option(MetadataJobKey(call.name, None, 1)), executionEventName(eventIndex, attr))
 
-  val y2k = OffsetDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneOffset.UTC)
 
   def ee(workflowId: WorkflowId, call: Call, eventIndex: Int, attr: Attr, value: Any): MetadataEvent = {
     val metadataValue = value match {
