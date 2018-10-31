@@ -76,8 +76,6 @@ object MetadataBuilderActor {
     // Partition events into workflow level and call level events
     val (workflowLevel, callLevel) = events partition { _.key.jobKey.isEmpty }
     val workflowLevelJson = MetadataComponent(workflowLevel, Map.empty).toJson.asJsObject
-    val delocalizing = events.filter(_.value.contains(MetadataValue("Localizing", MetadataString)))
-    println(delocalizing)
 
     /*
      * Map(

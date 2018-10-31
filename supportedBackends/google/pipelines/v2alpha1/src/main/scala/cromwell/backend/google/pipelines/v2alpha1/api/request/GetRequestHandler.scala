@@ -86,9 +86,12 @@ trait GetRequestHandler { this: RequestHandler =>
       metadata.get("createTime") map { time => ExecutionEvent("waiting for quota", OffsetDateTime.parse(time.toString)) }
     }
 
-    // Map action indexes to event types
+    // Map action indexes to event types. Action indexes are one based for some reason.
     val actionIndexToEventType: Map[Int, String] = List("logging", "tag").flatMap { k =>
-      actions.zipWithIndex collect { case (a, i) if a.getLabels.containsKey(k) => i -> a.getLabels.get(k) } } toMap
+      actions.zipWithIndex collect { case (a, i) if a.getLabels.containsKey(k) => (i + 1) -> a.getLabels.get(k) } } toMap
+//    actionIndexToEventType.keys.toList.sorted foreach { k =>
+//      println(s"Action $k has grouping ${actionIndexToEventType.apply(k)}")
+//    }
 
     starterEvent.toList ++ events.map(toExecutionEvent(actionIndexToEventType))
   }
