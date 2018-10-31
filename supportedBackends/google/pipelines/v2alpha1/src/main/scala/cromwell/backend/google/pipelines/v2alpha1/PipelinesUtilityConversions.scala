@@ -25,11 +25,11 @@ trait PipelinesUtilityConversions {
     .setSizeGb(disk.sizeGb)
     .setType(disk.diskType |> toV2DiskType)
 
-  def toExecutionEvent(localizingActionIndexes: Set[Int], delocalizingActionIndexes: Set[Int])(event: Event) : ExecutionEvent = {
+  def toExecutionEvent(actionIndexToEventType: Map[Int, String])(event: Event) : ExecutionEvent = {
     val grouping = for {
       rawValue <- Option(event.getDetails.get("actionId"))
       integerValue <- Try(Integer.valueOf(rawValue.toString)).toOption
-      group <- if (localizingActionIndexes.contains(integerValue)) Option("Localizing") else if (delocalizingActionIndexes.contains(integerValue)) Option("Delocalizing") else None
+      group <- actionIndexToEventType.get(integerValue)
     } yield group
 
     ExecutionEvent(

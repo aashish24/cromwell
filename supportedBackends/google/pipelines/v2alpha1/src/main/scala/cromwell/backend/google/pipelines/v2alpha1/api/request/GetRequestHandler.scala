@@ -18,6 +18,7 @@ import cromwell.core.ExecutionEvent
 
 import scala.collection.JavaConverters._
 import scala.concurrent.{ExecutionContext, Future}
+import scala.language.postfixOps
 import scala.util.{Failure, Try, Success => TrySuccess}
 
 trait GetRequestHandler { this: RequestHandler =>
@@ -85,12 +86,10 @@ trait GetRequestHandler { this: RequestHandler =>
       metadata.get("createTime") map { time => ExecutionEvent("waiting for quota", OffsetDateTime.parse(time.toString)) }
     }
 
-    val List(localizingActionIndexes, delocalizingActionIndexes) = List("Localization", "Delocalization") map { value =>
-      actions.zipWithIndex collect {
-        case (action, index) if List("logging", "tag") exists { key => action.getLabels.asScala.get(key).contains(value) } => index
-      }
-    }
+    // Map action indexes to event types
+    val actionIndexToEventType: Map[Int, String] = List("logging", "tag").flatMap { k =>
+      actions.zipWithIndex collect { case (a, i) if a.getLabels.containsKey(k) => i -> a.getLabels.get(k) } } toMap
 
-    starterEvent.toList ++ events.map(toExecutionEvent(localizingActionIndexes.toSet, delocalizingActionIndexes.toSet))
+    starterEvent.toList ++ events.map(toExecutionEvent(actionIndexToEventType))
   }
 }
