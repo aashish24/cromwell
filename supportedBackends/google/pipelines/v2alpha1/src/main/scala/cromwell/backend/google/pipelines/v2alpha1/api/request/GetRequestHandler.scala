@@ -11,6 +11,7 @@ import cromwell.backend.google.pipelines.common.api.PipelinesApiRequestManager._
 import cromwell.backend.google.pipelines.common.api.RunStatus
 import cromwell.backend.google.pipelines.common.api.RunStatus.{Initializing, Running, Success}
 import cromwell.backend.google.pipelines.v2alpha1.PipelinesConversions._
+import cromwell.backend.google.pipelines.v2alpha1.api.ActionBuilder.Labels.Key
 import cromwell.backend.google.pipelines.v2alpha1.api.Deserialization._
 import cromwell.backend.google.pipelines.v2alpha1.api.request.ErrorReporter._
 import cromwell.cloudsupport.gcp.auth.GoogleAuthMode
@@ -87,12 +88,12 @@ trait GetRequestHandler { this: RequestHandler =>
     }
 
     // Map action indexes to event types. Action indexes are one based for some reason.
-    val actionIndexToEventType: Map[Int, String] = List("logging", "tag").flatMap { k =>
+    val actionIndexToEventType: Map[Int, String] = List(Key.Logging, Key.Tag).flatMap { k =>
       actions.zipWithIndex collect { case (a, i) if a.getLabels.containsKey(k) => (i + 1) -> a.getLabels.get(k) } } toMap
 //    actionIndexToEventType.keys.toList.sorted foreach { k =>
 //      println(s"Action $k has grouping ${actionIndexToEventType.apply(k)}")
 //    }
 
-    starterEvent.toList ++ events.map(toExecutionEvent(actionIndexToEventType))
+    starterEvent.toList ++ events.flatMap(toExecutionEvent(actionIndexToEventType))
   }
 }

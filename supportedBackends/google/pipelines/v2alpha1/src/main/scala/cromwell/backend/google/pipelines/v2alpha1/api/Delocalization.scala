@@ -21,6 +21,7 @@ import scala.concurrent.duration._
 object Delocalization {
   private val logsRoot = "/google/logs"
   val plainTextContentType = Option(ContentTypes.`text/plain(UTF-8)`)
+  val CwlOutputJsonProcessingDockerImage = "stedolan/jq@sha256:a61ed0bca213081b64be94c5e1b402ea58bc549f457c2682a86704dd55231e09"
 }
 
 trait Delocalization {
@@ -62,7 +63,7 @@ trait Delocalization {
     )
 
     ActionBuilder
-      .withImage("stedolan/jq@sha256:a61ed0bca213081b64be94c5e1b402ea58bc549f457c2682a86704dd55231e09")
+      .withImage(CwlOutputJsonProcessingDockerImage)
       .setCommands(commands.asJava)
       .withMounts(mounts)
       .setEntrypoint("/bin/bash")
